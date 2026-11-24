@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-type Output struct {
+type output struct {
 	Name  string `json:"name"`
 	Modes []Mode `json:"modes"`
 }
@@ -29,11 +29,11 @@ func (m Mode) String() string {
 	)
 }
 
-func (m Mode) SwayString() string {
+func (m Mode) swayString() string {
 	return strings.ReplaceAll(m.String(), " ", "")
 }
 
-func GetOutputs() ([]Output, error) {
+func GetOutputs() ([]output, error) {
 	cmd := exec.Command("swaymsg", "-t", "get_outputs", "-r")
 
 	cmdOutput, err := cmd.Output()
@@ -41,7 +41,7 @@ func GetOutputs() ([]Output, error) {
 		return nil, err
 	}
 
-	var outputs []Output
+	var outputs []output
 
 	err = json.Unmarshal(cmdOutput, &outputs)
 	if err != nil {
@@ -51,7 +51,7 @@ func GetOutputs() ([]Output, error) {
 	return outputs, nil
 }
 
-func GetOutputNames(outputs []Output) []string {
+func GetOutputNames(outputs []output) []string {
 	names := make([]string, 0, len(outputs))
 
 	for _, output := range outputs {
@@ -85,7 +85,7 @@ func ConfigureOutput(output string, mode Mode) error {
 		"output",
 		output,
 		"mode",
-		mode.SwayString(),
+		mode.swayString(),
 	)
 
 	return cmd.Run()
