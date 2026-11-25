@@ -8,28 +8,19 @@ import (
 )
 
 func main() {
-	outputs, err := display.GetOutputs()
+	outputMap, err := display.GetOutputMap()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	outputNames := display.GetOutputNames(outputs)
+	outputNames := display.GetOutputNames(outputMap)
 
 	selectedOutput, err := picker.Run(outputNames)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	var modes []display.Mode
-
-	for _, output := range outputs {
-		if output.Name == selectedOutput {
-			modes = output.Modes
-			break
-		}
-	}
-
-	modes = display.GetUniqueModes(modes)
+	modes := outputMap[selectedOutput]
 
 	modeStrings := make([]string, len(modes))
 
@@ -37,18 +28,9 @@ func main() {
 		modeStrings[i] = mode.String()
 	}
 
-	selectedModeString, err := picker.Run(modeStrings)
+	selectedMode, err := picker.Run(modeStrings)
 	if err != nil {
 		log.Fatal(err)
-	}
-
-	var selectedMode display.Mode
-
-	for _, mode := range modes {
-		if mode.String() == selectedModeString {
-			selectedMode = mode
-			break
-		}
 	}
 
 	err = display.ConfigureOutput(selectedOutput, selectedMode)

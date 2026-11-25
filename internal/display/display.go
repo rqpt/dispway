@@ -1,3 +1,5 @@
+// Package display implements abstractions for dealing with getting and setting
+// the monitor display configuration of swaywm.
 package display
 
 import (
@@ -8,32 +10,9 @@ import (
 	"strings"
 )
 
-type output struct {
-	Name  string `json:"name"`
-	Modes []Mode `json:"modes"`
-}
-
-type Mode struct {
-	Width              int    `json:"width"`
-	Height             int    `json:"height"`
-	Refresh            int    `json:"refresh"`
-	PictureAspectRatio string `json:"picture_aspect_ratio"`
-}
-
-func (m Mode) String() string {
-	return fmt.Sprintf(
-		"%dx%d @ %.3f Hz",
-		m.Width,
-		m.Height,
-		float64(m.Refresh)/1000,
-	)
-}
-
-func (m Mode) swayString() string {
-	return strings.ReplaceAll(m.String(), " ", "")
-}
-
-func GetOutputs() ([]output, error) {
+// GetOutputMap calls `swaymsg -t get_outputs -r`, which outputs a json body
+// describing the current display configuration, and then returns an outputMap.
+func GetOutputMap() (outputMap, error) {
 	cmd := exec.Command("swaymsg", "-t", "get_outputs", "-r")
 
 	cmdOutput, err := cmd.Output()
@@ -48,14 +27,22 @@ func GetOutputs() ([]output, error) {
 		return nil, err
 	}
 
-	return outputs, nil
-}
-
-func GetOutputNames(outputs []output) []string {
-	names := make([]string, 0, len(outputs))
+	outputMap := make(outputMap, len(outputs))
 
 	for _, output := range outputs {
-		names = append(names, output.Name)
+		output.clearDuplicateModes()
+		outputMap[output.Name] = output.Modes
+	}
+
+	return outputMap, nil
+}
+
+// GetOutputNames returns the keys of an outputMap.
+func GetOutputNames(outputMap outputMap) []string {
+	names := make([]string, 0, len(outputMap))
+
+	for name := range outputMap {
+		names = append(names, name)
 	}
 
 	sort.Strings(names)
@@ -63,11 +50,34 @@ func GetOutputNames(outputs []output) []string {
 	return names
 }
 
-func GetUniqueModes(modes []Mode) []Mode {
-	seen := make(map[Mode]struct{})
-	unique := make([]Mode, 0, len(modes))
+// ConfigureOutput sets the current display configuration by calling swaymsg
+// using the provided output and mode.
+func ConfigureOutput(output, mode string) error {
+	cmd := exec.Command(
+		"swaymsg",
+		"output",
+		output,
+		"mode",
+		strings.ReplaceAll(mode, " ", ""),
+	)
 
-	for _, mode := range modes {
+	return cmd.Run()
+}
+
+// A map keyed by the display outputs available, and the various modes
+// available for each as values.
+type outputMap map[string][]mode
+
+type output struct {
+	Name  string `json:"name"`
+	Modes []mode `json:"modes"`
+}
+
+func (o *output) clearDuplicateModes() {
+	seen := make(map[mode]struct{})
+	unique := make([]mode, 0, len(o.Modes))
+
+	for _, mode := range o.Modes {
 		if _, exists := seen[mode]; exists {
 			continue
 		}
@@ -76,17 +86,20 @@ func GetUniqueModes(modes []Mode) []Mode {
 		unique = append(unique, mode)
 	}
 
-	return unique
+	o.Modes = unique
 }
 
-func ConfigureOutput(output string, mode Mode) error {
-	cmd := exec.Command(
-		"swaymsg",
-		"output",
-		output,
-		"mode",
-		mode.swayString(),
-	)
+type mode struct {
+	Width   int `json:"width"`
+	Height  int `json:"height"`
+	Refresh int `json:"refresh"`
+}
 
-	return cmd.Run()
+func (m mode) String() string {
+	return fmt.Sprintf(
+		"%dx%d @ %.3f Hz",
+		m.Width,
+		m.Height,
+		float64(m.Refresh)/1000,
+	)
 }
